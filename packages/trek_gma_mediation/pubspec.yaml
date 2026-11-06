@@ -1,0 +1,32 @@
+name: trek_gma_mediation
+description: AotterTrek ads through Google Mobile Ads mediation (AdMob and Ad Manager), with built-in native ad layouts that size themselves to each creative.
+version: 0.1.0
+homepage: https://aotter.net
+repository: https://github.com/aotter/aotter-trek-flutter/tree/main/packages/trek_gma_mediation
+issue_tracker: https://github.com/aotter/aotter-trek-flutter/issues
+documentation: https://aotter.gitbook.io/flutter
+
+environment:
+  sdk: ^3.10.0
+  # 3.44 lets the iOS plugin register its NativeAdFactory itself, so apps write
+  # no native code.
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_mobile_ads: ^9.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: net.aotter.trek_gma_mediation
+        pluginClass: TrekGmaMediationPlugin
+      ios:
+        pluginClass: TrekGmaMediationPlugin

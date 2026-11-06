@@ -1,0 +1,13 @@
+# Internal agent guide (Chinese) -- never committed to this public-bound repo.
+CLAUDE.md
+.claude/
+
+# OS noise
+.DS_Store
+
+# Local tooling
+local.properties
+
+# IDE
+.idea/
+*.iml

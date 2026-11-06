@@ -1,0 +1,7 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include "Generated.xcconfig"
+
+// Google's public test AdMob app unless Local.xcconfig (git-ignored) sets
+// GAD_APPLICATION_ID.
+GAD_APPLICATION_ID = ca-app-pub-3940256099942544~1458002511
+#include? "Local.xcconfig"
