@@ -1,6 +1,6 @@
 name: trek_gma_mediation
 description: AotterTrek ads through Google Mobile Ads mediation (AdMob and Ad Manager), with built-in native ad layouts that size themselves to each creative.
-version: 0.1.0
+version: 0.1.1
 homepage: https://aotter.net
 repository: https://github.com/aotter/aotter-trek-flutter/tree/main/packages/trek_gma_mediation
 issue_tracker: https://github.com/aotter/aotter-trek-flutter/issues

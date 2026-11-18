@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'trek_gma_mediation'
-  s.version          = '0.1.0'
+  s.version          = '0.1.1'
   s.summary          = 'AotterTrek ads through Google Mobile Ads mediation for Flutter.'
   s.description      = <<-DESC
 Brings the AotterTrek Google Mobile Ads adapter into a Flutter app and registers
