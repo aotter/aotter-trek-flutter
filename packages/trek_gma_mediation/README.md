@@ -28,13 +28,31 @@ The integration guide is at
   maven { url = uri("https://deps.aotter.net/artifactory/libs-release-local") }
   ```
 
-## Console setup
+## Before you start
 
-In the AdMob or Ad Manager console, add AotterTrek to each ad unit's mediation
-group as a custom event. The class name and parameter differ by platform; see
-AotterTrek's AdMob prerequisites for
-[Android](https://aotter.gitbook.io/android/integration-of-third-party-ad-network/admob/prerequisites)
-and [iOS](https://aotter.gitbook.io/ios/ios-1/admob/prerequisites).
+1. **Create the AotterTrek apps and placements.** In the
+   [AotterTrek console](https://trek.aotter.net/), create one application for
+   Android and one for iOS: each platform has its own client ID and its own
+   placements. Then create the placements (Native Ad, Native Multimedia Ad or
+   Banner Ad) under each application. The steps are the same as for a native
+   app; see the Prerequisites for
+   [Android](https://aotter.gitbook.io/android/android/get-started/prerequisites)
+   or [iOS](https://aotter.gitbook.io/ios/ios/get-started/prerequisites).
+2. **Add AotterTrek to the mediation groups.** AdMob and Ad Manager also keep
+   a separate app for each platform. In each ad unit's mediation group, add
+   AotterTrek as a custom event with that platform's client ID and placement.
+   The class name and parameter differ by platform; see AotterTrek's AdMob
+   prerequisites for
+   [Android](https://aotter.gitbook.io/android/integration-of-third-party-ad-network/admob/prerequisites)
+   and [iOS](https://aotter.gitbook.io/ios/ios-1/admob/prerequisites). To try
+   the integration before your placements are ready, start with
+   [AotterTrek's test values](https://aotter.gitbook.io/flutter/testing#start-with-aottertreks-test-values).
+3. **Match each placement in the app.** Each ad unit maps to one AotterTrek
+   placement. A Native Ad placement takes
+   `TrekNativeAdOptions.forNativeAdUnit()` and a Native Multimedia Ad
+   placement `TrekNativeAdOptions.forNativeMultimediaAdUnit()` (see
+   [Native ads](#native-ads)); a Banner Ad placement takes a `BannerAd` of the
+   placement's size (see [Banners](#banners)).
 
 ## Native ads
 
@@ -132,6 +150,31 @@ An AotterTrek banner placement has one size: 320 × 50, 320 × 100 or 300 × 250
 Request that size with `BannerAd`; the creative is not scaled to another size,
 so do not use adaptive sizes. Refresh follows the AdMob or Ad Manager console.
 
+## Creatives that move with the page
+
+Some AotterTrek creatives move as the page scrolls (a parallax effect), in
+native ads and banners alike. On Android they follow scrolling by themselves.
+On iOS they need telling: `TrekMediationNativeAdWidget` tells them whenever the
+nearest `Scrollable` around it scrolls, and that notice reaches the AotterTrek
+ads shown through AdMob or Ad Manager on the screen, banners included, but
+only while such a widget is built in the same `Scrollable`; a lazy list drops
+rows that scroll away. Call `TrekMediation.notifyAdScrolled()` yourself as the
+page scrolls when it shows banners, or when something else moves the ads, such
+as an outer `Scrollable`; the SDK skips ads that did not move:
+
+```dart
+NotificationListener<ScrollUpdateNotification>(
+  onNotification: (_) {
+    TrekMediation.notifyAdScrolled();
+    return false;
+  },
+  child: listView,
+);
+```
+
+On iOS, an ad that is on screen before the page has scrolled shows its
+creative at the starting position until the page first scrolls.
+
 ## Callbacks and testing
 
 - `onAdImpression` is Google Mobile Ads' callback and fires at a different time
@@ -166,19 +209,24 @@ Tested with:
 | Flutter | 3.47.1 (3.44 or later required) |
 | `google_mobile_ads` | 9.2.0 |
 | Google Mobile Ads SDK | iOS 13.11, Android 25.5 |
-| AotterTrek, Android | `trek-admob-mediation` 5.6.5 (with `trek-ads` 5.6.5) |
+| AotterTrek, Android | `trek-admob-mediation` 5.6.6 (with `trek-ads` 5.6.6) |
 | AotterTrek, iOS | `AotterTrekMediation` 5.0.1 (with `AotterTrekSDK` 5.0.1) |
 | iOS integration | Swift Package Manager and CocoaPods |
 
-- On iOS, Native Multimedia Ads with a parallax creative do not move with the
-  page: the package does not yet call the AotterTrek SDK's `notifyAdScrolled`
-  when the page scrolls.
 - AotterTrekMediation for iOS supports Google Mobile Ads SDK 12 and 13. A
   `google_mobile_ads` release that requires SDK 14 cannot be resolved until
   AotterTrekMediation supports it.
 - Ad Manager has not been tested on a device. It takes AotterTrek's Ad
   Manager adapter on Android (`trek-gam-mediation`, which the package brings
   in) and the same adapter as AdMob on iOS.
+- Creatives that move with the page have been watched following the page on
+  an iPhone and on an Android phone.
+- Release builds on Android need no R8 (ProGuard) rules from the app: the
+  plugin carries those the AotterTrek SDK needs, and one for WorkManager,
+  which Google Mobile Ads brings in. Version 0.1.0 carried none of them:
+  AotterTrek did not fill in release builds made with it, and one made with
+  Android Gradle Plugin 9.1 stopped at start-up, as an app with
+  `google_mobile_ads` alone does.
 - `google_mobile_ads`' Next-Gen SDK mode on Android (`USE_NEXT_GEN_SDK=true`)
   is not supported: the AotterTrek adapters and the built-in layouts use the
   regular Google Mobile Ads SDK.
