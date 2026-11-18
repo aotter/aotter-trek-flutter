@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -80,9 +81,31 @@ abstract final class TrekNativeAdOptions {
   };
 }
 
+/// For AotterTrek creatives that move with the page (parallax).
+abstract final class TrekMediation {
+  static const MethodChannel _channel = MethodChannel(
+    'trek_gma_mediation/scroll',
+  );
+
+  /// Tells the AotterTrek ads shown through AdMob or Ad Manager on screen,
+  /// banners included, that the page scrolled.
+  /// [TrekMediationNativeAdWidget] does it by itself when the
+  /// nearest [Scrollable] around it scrolls, while it is built; call this as
+  /// the page scrolls when it shows banners, or when something else moves the
+  /// ads, such as an outer [Scrollable]. Android follows by itself; the call
+  /// does nothing there.
+  static Future<void> notifyAdScrolled() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    await _channel.invokeMethod<void>('notifyAdScrolled');
+  }
+}
+
 /// Shows a loaded [NativeAd] in a box as tall as its native layout needs at
 /// the available width, so the creative keeps its own aspect ratio (1.91:1,
 /// 16:9 or 9:16) as in a native AotterTrek app.
+///
+/// On iOS it tells creatives that move with the page when the nearest
+/// [Scrollable] around it scrolls; see [TrekMediation.notifyAdScrolled].
 ///
 /// The ad's `customOptions` must come from [TrekNativeAdOptions].
 class TrekMediationNativeAdWidget extends StatelessWidget {
@@ -109,16 +132,85 @@ class TrekMediationNativeAdWidget extends StatelessWidget {
       // Keyed globally by the ad: a different ad gets its own platform view,
       // and an ad that moves to another row of an unkeyed list (a row
       // inserted above it) is moved along with its platform view.
-      child: AdWidget(key: GlobalObjectKey(ad), ad: ad),
+      child: _FollowScroll(
+        child: AdWidget(key: _AdKey(ad), ad: ad),
+      ),
     );
   }
+}
+
+/// iOS creatives that move with the page need telling, as a native app does
+/// from scrollViewDidScroll; Android follows by itself.
+// The nearest Scrollable only; an ad moved by an outer one needs
+// TrekMediation.notifyAdScrolled.
+class _FollowScroll extends StatefulWidget {
+  const _FollowScroll({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_FollowScroll> createState() => _FollowScrollState();
+}
+
+class _FollowScrollState extends State<_FollowScroll> {
+  ScrollPosition? _position;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _follow();
+  }
+
+  /// Moved by a key, the widget gets no dependency on a Scrollable it did not
+  /// have before.
+  @override
+  void activate() {
+    super.activate();
+    _follow();
+  }
+
+  @override
+  void dispose() {
+    _position?.removeListener(_scrolled);
+    super.dispose();
+  }
+
+  void _follow() {
+    final position = Scrollable.maybeOf(context)?.position;
+    if (position == _position) return;
+    _position?.removeListener(_scrolled);
+    _position = position?..addListener(_scrolled);
+  }
+
+  static bool _notifyScheduled = false;
+
+  /// Once a frame for all ads, after the frame that moved them; the plugin
+  /// tells them once more when they come to rest.
+  static void _scrolled() {
+    if (_notifyScheduled) return;
+    _notifyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      // Nothing to do if no plugin answers, as in a test without one.
+      TrekMediation.notifyAdScrolled().ignore();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// A key of the package's own type, so an app that keys its own widget with
+/// `GlobalObjectKey(ad)` does not get a duplicate key.
+class _AdKey extends GlobalObjectKey {
+  const _AdKey(super.value);
 }
 
 /// The heights the native layouts report, by ad key. They outlive the widgets,
 /// so a widget built again for the same ad (a list row scrolled away and back)
 /// starts at the right height: the native layout reports only changes.
-// ponytail: one entry per ad for the life of the process; drop it when the ad
-// is disposed if apps ever load ads by the thousands.
+// One entry per ad for the life of the process; drop it when the ad is
+// disposed if apps ever load ads by the thousands.
 abstract final class _ReportedHeights {
   static const MethodChannel _channel = MethodChannel(
     'trek_gma_mediation/ad_size',

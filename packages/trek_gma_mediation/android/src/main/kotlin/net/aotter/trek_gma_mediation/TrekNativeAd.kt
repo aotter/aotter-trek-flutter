@@ -19,6 +19,8 @@ import android.widget.TextView
 import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
+import io.flutter.embedding.android.FlutterView
+import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.googlemobileads.NativeAdFactory
 import java.net.URL
@@ -30,34 +32,69 @@ import kotlin.math.roundToInt
  * Tells TrekMediationNativeAdWidget (Dart) how tall an ad view's layout wants
  * to be at the width Flutter gives it, so the creative keeps its own aspect
  * ratio. Built-in layouts attach it themselves; an integrator's own
- * NativeAdFactory calls attach() with options from TrekNativeAdOptions.
+ * NativeAdFactory calls attach() on the view it returns, with options from
+ * TrekNativeAdOptions.
  */
 object TrekAdSizeReporter {
-    // ponytail: one channel for the process; key it per engine if add-to-app needs several.
-    internal var channel: MethodChannel? = null
+    internal const val CHANNEL = "trek_gma_mediation/ad_size"
+
+    /**
+     * The engine that attached last, until it detaches (then there is none,
+     * even with earlier engines still attached), for an ad view shown
+     * somewhere [messengerShowing] finds no Flutter view with an engine.
+     */
+    internal var fallback: BinaryMessenger? = null
+
+    /**
+     * The engine whose Flutter view shows [view] now: an app may run several
+     * engines, and each one's Dart side knows only its own ads.
+     */
+    @Suppress("VisibleForTests") // FlutterView.getBinaryMessenger() throws without an engine; this getter returns null
+    private fun messengerShowing(view: View): BinaryMessenger? =
+        generateSequence(view.parent) { it.parent }.filterIsInstance<FlutterView>().firstOrNull()
+            ?.attachedFlutterEngine?.dartExecutor
 
     @JvmStatic
-    fun attach(adView: View, customOptions: Map<String, Any>?) {
+    fun attach(adView: View, customOptions: Map<String, Any>?) = attach(adView, customOptions, null)
+
+    /**
+     * [messenger] is the engine a built-in layout was made for. Without one, as
+     * for an app's own factory, the engine is looked up from the ad view.
+     */
+    internal fun attach(adView: View, customOptions: Map<String, Any>?, messenger: BinaryMessenger?) {
         val key = customOptions?.get("trekSizeKey") as? String ?: return
         var reported = 0
-        adView.addOnLayoutChangeListener { v, left, _, right, _, _, _, _, _ ->
-            val width = right - left
-            if (width <= 0) return@addOnLayoutChangeListener
-            // Measure after the pass, not inside it.
-            v.post {
-                v.measure(
-                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                )
-                val height = v.measuredHeight
-                if (height <= 0 || abs(height - reported) <= 1) return@post
-                reported = height
-                channel?.invokeMethod(
+        // Whether the last height went to the engine that shows the ad, not to the fallback.
+        var delivered = false
+        fun report(v: View, width: Int) {
+            v.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            val height = v.measuredHeight
+            if (height <= 0) return
+            val changed = abs(height - reported) > 1
+            if (!changed && delivered) return
+            // A height that went to the fallback may have reached another engine, or one whose
+            // Dart side was not listening yet: it goes again once the view is in a Flutter view.
+            val shownBy = messenger ?: messengerShowing(v)
+            if (!changed && shownBy == null) return
+            reported = height
+            delivered = shownBy != null
+            (shownBy ?: fallback)?.let {
+                MethodChannel(it, CHANNEL).invokeMethod(
                     "adSize",
                     mapOf("key" to key, "height" to height / v.resources.displayMetrics.density),
                 )
-                v.requestLayout()
             }
+            v.requestLayout()
+        }
+        // Runs after every layout pass of the view, also one that leaves its size as it was,
+        // such as the pass that follows moving it into a Flutter view.
+        adView.addOnLayoutChangeListener { v, left, _, right, _, _, _, _, _ ->
+            val width = right - left
+            // Measure after the pass, not inside it.
+            if (width > 0) v.post { report(v, width) }
         }
     }
 }
@@ -72,7 +109,11 @@ object TrekAdSizeReporter {
  * sponsor label; an ad without one (other networks) gets Google's "Ad" badge, as
  * AdMob requires ad attribution.
  */
-internal class TrekNativeAdFactory(private val context: Context) : NativeAdFactory {
+internal class TrekNativeAdFactory(
+    private val context: Context,
+    /** The engine this factory is registered with: its ads' heights go there. */
+    private val messenger: BinaryMessenger,
+) : NativeAdFactory {
 
     private val dp = context.resources.displayMetrics.density
 
@@ -96,7 +137,7 @@ internal class TrekNativeAdFactory(private val context: Context) : NativeAdFacto
         }
         adView.addView(column, MATCH_PARENT, WRAP_CONTENT)
         adView.setNativeAd(nativeAd)
-        TrekAdSizeReporter.attach(adView, customOptions)
+        TrekAdSizeReporter.attach(adView, customOptions, messenger)
         return adView
     }
 

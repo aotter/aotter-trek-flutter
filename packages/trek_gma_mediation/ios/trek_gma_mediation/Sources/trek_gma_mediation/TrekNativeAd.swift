@@ -6,15 +6,36 @@ import google_mobile_ads
 /// Tells TrekMediationNativeAdWidget (Dart) how tall an ad view's layout wants
 /// to be at the width Flutter gives it, so the creative keeps its own aspect
 /// ratio. Built-in layouts attach it themselves; an integrator's own
-/// NativeAdFactory calls attach(_:customOptions:) with options from
-/// TrekNativeAdOptions.
+/// NativeAdFactory calls attach(_:customOptions:) on the view it returns,
+/// with options from TrekNativeAdOptions.
 @objc public final class TrekAdSizeReporter: NSObject {
-  // ponytail: one channel for the process; key it per engine if add-to-app needs several.
-  static var channel: FlutterMethodChannel?
+  static let channelName = "trek_gma_mediation/ad_size"
+
+  /// The engine, while the plugin has been registered only once, for an ad
+  /// view shown somewhere `messenger(showing:)` finds no Flutter view
+  /// controller. Registered again, there is none: the last engine to register
+  /// may show none of these ads, or have had its context destroyed, and a
+  /// message to that one stops the app.
+  static var fallback: FlutterBinaryMessenger?
+
+  /// The engine whose Flutter view controller shows `view` now: an app may run
+  /// several engines, and each one's Dart side knows only its own ads.
+  static func messenger(showing view: UIView) -> FlutterBinaryMessenger? {
+    sequence(first: view as UIResponder, next: { $0.next })
+      .lazy.compactMap { $0 as? FlutterViewController }.first?.binaryMessenger
+  }
 
   @objc public static func attach(_ adView: UIView, customOptions: [AnyHashable: Any]?) {
+    attach(adView, customOptions: customOptions, messenger: nil)
+  }
+
+  /// `messenger` is the engine a built-in layout was made for. Without one, as
+  /// for an app's own factory, the engine is looked up from the ad view.
+  static func attach(
+    _ adView: UIView, customOptions: [AnyHashable: Any]?, messenger: FlutterBinaryMessenger?
+  ) {
     guard let key = customOptions?["trekSizeKey"] as? String else { return }
-    let probe = LayoutProbe(key: key)
+    let probe = LayoutProbe(key: key, messenger: messenger)
     probe.frame = adView.bounds
     probe.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     probe.isUserInteractionEnabled = false
@@ -23,17 +44,31 @@ import google_mobile_ads
 }
 
 /// Resizes with the ad view, so its layoutSubviews runs whenever Flutter
-/// changes the platform view's size; measures the ad view's fitting height.
+/// changes the platform view's size, and is asked to run whenever the view
+/// enters a window; measures the ad view's fitting height.
 private final class LayoutProbe: UIView {
-  let key: String
+  private let key: String
+  private let messenger: FlutterBinaryMessenger?
   private var reported: CGFloat = 0
+  /// Whether the last height went to the engine that shows the ad, not to the
+  /// fallback.
+  private var delivered = false
 
-  init(key: String) {
+  init(key: String, messenger: FlutterBinaryMessenger?) {
     self.key = key
+    self.messenger = messenger
     super.init(frame: .zero)
   }
 
   required init?(coder: NSCoder) { nil }
+
+  /// In a window, the view may be in a Flutter view controller at the size it
+  /// already had, so nothing else measures it: its height may not have been
+  /// delivered yet, or may have changed while the view was away.
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window != nil { setNeedsLayout() }
+  }
 
   override func layoutSubviews() {
     super.layoutSubviews()
@@ -43,9 +78,19 @@ private final class LayoutProbe: UIView {
       withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel
     ).height
-    guard height > 0, abs(height - reported) > 0.5 else { return }
+    guard height > 0 else { return }
+    let changed = abs(height - reported) > 0.5
+    guard changed || !delivered else { return }
+    // A height that went to the fallback may have got there before the Dart
+    // side was listening, and without a fallback it went nowhere: it goes
+    // again once the view is in a Flutter view controller.
+    let shownBy = messenger ?? TrekAdSizeReporter.messenger(showing: self)
+    guard changed || shownBy != nil else { return }
     reported = height
-    TrekAdSizeReporter.channel?.invokeMethod("adSize", arguments: ["key": key, "height": height])
+    delivered = shownBy != nil
+    guard let target = shownBy ?? TrekAdSizeReporter.fallback else { return }
+    FlutterMethodChannel(name: TrekAdSizeReporter.channelName, binaryMessenger: target)
+      .invokeMethod("adSize", arguments: ["key": key, "height": height])
   }
 }
 
@@ -60,6 +105,13 @@ private final class LayoutProbe: UIView {
 final class TrekNativeAdFactory: NSObject, FLTNativeAdFactory {
   private static let ctaBlue = UIColor(red: 0x1A / 255.0, green: 0x73 / 255.0, blue: 0xE8 / 255.0, alpha: 1)
   private static let adGreen = UIColor(red: 0x3A / 255.0, green: 0x67 / 255.0, blue: 0x28 / 255.0, alpha: 1)
+
+  /// The engine this factory is registered with: its ads' heights go there.
+  private let messenger: FlutterBinaryMessenger
+
+  init(messenger: FlutterBinaryMessenger) {
+    self.messenger = messenger
+  }
 
   func createNativeAd(_ nativeAd: NativeAd, customOptions: [AnyHashable: Any]?) -> NativeAdView? {
     let style = customOptions?["trekStyle"] as? [String: Any] ?? [:]
@@ -76,7 +128,7 @@ final class TrekNativeAdFactory: NSObject, FLTNativeAdFactory {
       ], in: adView)
     }
     adView.nativeAd = nativeAd
-    TrekAdSizeReporter.attach(adView, customOptions: customOptions)
+    TrekAdSizeReporter.attach(adView, customOptions: customOptions, messenger: messenger)
     return adView
   }
 

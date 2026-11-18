@@ -2,14 +2,13 @@ package net.aotter.trek_gma_mediation
 
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
 
 class TrekGmaMediationPlugin : FlutterPlugin {
     private var engine: FlutterEngine? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        TrekAdSizeReporter.channel = MethodChannel(binding.binaryMessenger, "trek_gma_mediation/ad_size")
+        TrekAdSizeReporter.fallback = binding.binaryMessenger
 
         // Registered by the plugin, so apps write no native code.
         // GeneratedPluginRegistrant adds plugins in name order, so
@@ -18,12 +17,14 @@ class TrekGmaMediationPlugin : FlutterPlugin {
         val engine = binding.flutterEngine
         this.engine = engine
         GoogleMobileAdsPlugin.registerNativeAdFactory(
-            engine, FACTORY_ID, TrekNativeAdFactory(binding.applicationContext))
+            engine, FACTORY_ID, TrekNativeAdFactory(binding.applicationContext, binding.binaryMessenger))
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         engine?.let { GoogleMobileAdsPlugin.unregisterNativeAdFactory(it, FACTORY_ID) }
         engine = null
+        // The binding hands out the same messenger at attach and at detach.
+        if (TrekAdSizeReporter.fallback === binding.binaryMessenger) TrekAdSizeReporter.fallback = null
     }
 
     private companion object {

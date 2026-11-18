@@ -16,6 +16,8 @@ let package = Package(
         .package(name: "google_mobile_ads", path: "../google_mobile_ads"),
         // The AdMob / Ad Manager adapter; it brings AotterTrekSDK with it.
         .package(url: "https://github.com/aotter/AotterTrekMediation-iOS.git", from: "5.0.1"),
+        // Named too, as the plugin calls it for the scroll notice.
+        .package(url: "https://github.com/aotter/AotterTrekSDK-iOS.git", from: "5.0.1"),
     ],
     targets: [
         .target(
@@ -24,6 +26,7 @@ let package = Package(
                 .product(name: "FlutterFramework", package: "FlutterFramework"),
                 .product(name: "google-mobile-ads", package: "google_mobile_ads"),
                 .product(name: "AotterTrekAdMobMediation", package: "AotterTrekMediation-iOS"),
+                .product(name: "AotterTrekSDK", package: "AotterTrekSDK-iOS"),
             ]
         )
     ]

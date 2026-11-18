@@ -15,6 +15,8 @@ native ad layouts that size themselves to each creative.
   s.dependency 'google_mobile_ads'
   # The AdMob / Ad Manager adapter; it brings AotterTrekSDK with it.
   s.dependency 'AotterTrekMediation', '~> 5.0', '>= 5.0.1'
+  # Named too, as the plugin calls it for the scroll notice.
+  s.dependency 'AotterTrekSDK', '~> 5.0', '>= 5.0.1'
   s.platform = :ios, '15.0'
   s.static_framework = true
 
