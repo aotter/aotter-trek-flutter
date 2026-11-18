@@ -46,7 +46,7 @@ android {
 
     defaultConfig {
         minSdk = 24
-        // google_mobile_ads creates TrekFlutterMediationExtras by class name.
+        // What an app's R8 must keep for this plugin and the libraries it brings in.
         consumerProguardFiles("consumer-rules.pro")
     }
 }
@@ -59,6 +59,6 @@ kotlin {
 
 dependencies {
     // The AdMob and Ad Manager adapters; they bring trek-ads with them.
-    api("com.aotter.android:trek-admob-mediation:5.6.5")
-    api("com.aotter.android:trek-gam-mediation:5.6.5")
+    api("com.aotter.android:trek-admob-mediation:5.6.6")
+    api("com.aotter.android:trek-gam-mediation:5.6.6")
 }
