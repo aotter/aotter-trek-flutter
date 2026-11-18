@@ -1,0 +1,31 @@
+name: trek_ads
+description: AotterTrek ads straight from the AotterTrek SDKs, drawn natively, with built-in native ad layouts that size themselves to each creative.
+version: 0.1.1
+homepage: https://aotter.net
+repository: https://github.com/aotter/aotter-trek-flutter/tree/main/packages/trek_ads
+issue_tracker: https://github.com/aotter/aotter-trek-flutter/issues
+documentation: https://aotter.gitbook.io/flutter
+
+environment:
+  sdk: ^3.13.1
+  flutter: '>=3.47.1'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  meta: ^1.18.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  pigeon: ^29.1.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: net.aotter.trek_ads
+        pluginClass: TrekAdsPlugin
+      ios:
+        pluginClass: TrekAdsPlugin

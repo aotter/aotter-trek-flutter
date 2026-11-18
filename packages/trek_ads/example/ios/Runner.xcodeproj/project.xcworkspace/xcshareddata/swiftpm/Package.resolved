@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "aottertreksdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/aotter/AotterTrekSDK-iOS.git",
+      "state" : {
+        "revision" : "b8dd9a18bb02a1f6d2784b13a6a6cfd30dfc9ec2",
+        "version" : "5.0.1"
+      }
+    }
+  ],
+  "version" : 2
+}

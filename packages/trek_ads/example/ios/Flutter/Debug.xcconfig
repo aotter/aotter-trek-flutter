@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+
+// DEVELOPMENT_TEAM, to run on a device, goes in Local.xcconfig (git-ignored).
+#include? "Local.xcconfig"
